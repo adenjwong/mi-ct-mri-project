@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
+import SimpleITK as sitk
+
+from load_data import load_fixed_moving
+from preprocess import preprocess_ct_mri
+from register_rigid import (
+    resample_registered_image,
+    run_rigid_registration,
+    save_results_json,
+    save_transform,
+)
+from evaluate import summarize_registration
+from visualize import save_metric_curve, save_overlay_figure
+
+
+def _write_summary_csv(rows: List[Dict[str, Any]], out_csv: Path) -> None:
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        return
+
+    fieldnames = sorted(rows[0].keys())
+    with open(out_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run rigid CT-MRI MI registration experiments.")
+    parser.add_argument("--ct", required=True, help="Path to fixed CT image")
+    parser.add_argument("--mri", required=True, help="Path to moving MRI image")
+    parser.add_argument("--outdir", required=True, help="Output directory")
+    parser.add_argument("--metrics", nargs="+", default=["mattes_mi", "joint_hist_mi"])
+    parser.add_argument("--bins", nargs="+", type=int, default=[16, 32, 64])
+    parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
+    parser.add_argument("--sampling_percentage", type=float, default=0.2)
+    parser.add_argument("--learning_rate", type=float, default=1.0)
+    parser.add_argument("--iterations", type=int, default=200)
+    parser.add_argument("--normalization", type=str, default="0_1", choices=["0_1", "zscore", "none"])
+    parser.add_argument("--match_grid", action="store_true")
+    parser.add_argument("--perturb_init", action="store_true")
+    args = parser.parse_args()
+
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    fixed_raw, moving_raw = load_fixed_moving(args.ct, args.mri)
+    fixed, moving = preprocess_ct_mri(
+        fixed_raw,
+        moving_raw,
+        normalization=args.normalization,
+        match_grid=args.match_grid,
+    )
+
+    summary_rows: List[Dict[str, Any]] = []
+
+    for metric_name in args.metrics:
+        for bins in args.bins:
+            for seed in args.seeds:
+                run_name = f"{metric_name}_bins{bins}_seed{seed}"
+                run_dir = outdir / run_name
+                run_dir.mkdir(parents=True, exist_ok=True)
+
+                transform, reg_results = run_rigid_registration(
+                    fixed=fixed,
+                    moving=moving,
+                    metric_name=metric_name,
+                    bins=bins,
+                    sampling_percentage=args.sampling_percentage,
+                    learning_rate=args.learning_rate,
+                    number_of_iterations=args.iterations,
+                    perturb_init=args.perturb_init,
+                    seed=seed,
+                )
+
+                registered = resample_registered_image(fixed, moving, transform)
+                sitk.WriteImage(registered, str(run_dir / "registered_mri.nii.gz"))
+                save_transform(transform, run_dir / "final_transform.tfm")
+                save_results_json(reg_results, run_dir / "registration_results.json")
+
+                summary = summarize_registration(fixed, registered, bins=bins)
+
+                save_metric_curve(
+                    reg_results["iteration_metric_values"],
+                    run_dir / "metric_curve.png",
+                    title=f"{metric_name}, bins={bins}, seed={seed}",
+                )
+                save_overlay_figure(
+                    fixed,
+                    moving,
+                    registered,
+                    run_dir / "overlay.png",
+                    axis=0,
+                )
+
+                row = {
+                    "run_name": run_name,
+                    "metric_name": metric_name,
+                    "bins": bins,
+                    "seed": seed,
+                    "sampling_percentage": args.sampling_percentage,
+                    "learning_rate": args.learning_rate,
+                    "iterations_requested": args.iterations,
+                    "iterations_recorded": len(reg_results["iteration_metric_values"]),
+                    "optimizer_final_metric": reg_results["final_metric_value"],
+                    "posthoc_mi": summary["posthoc_mi"],
+                    "posthoc_nmi": summary["posthoc_nmi"],
+                    "stop_condition": reg_results["stop_condition"],
+                }
+                summary_rows.append(row)
+
+                with open(run_dir / "summary.json", "w", encoding="utf-8") as f:
+                    json.dump(row, f, indent=2)
+
+                print(f"Finished {run_name}")
+
+    _write_summary_csv(summary_rows, outdir / "summary.csv")
+    print(f"Saved summary to: {outdir / 'summary.csv'}")
+
+
+if __name__ == "__main__":
+    main()
