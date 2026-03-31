@@ -99,13 +99,13 @@ def main() -> None:
                     run_dir / "metric_curve.png",
                     title=f"{metric_name}, bins={bins}, seed={seed}",
                 )
-                save_overlay_figure(
-                    fixed,
-                    moving,
-                    registered,
-                    run_dir / "overlay.png",
-                    axis=0,
-                )
+                # save_overlay_figure(
+                #     fixed,
+                #     moving,
+                #     registered,
+                #     run_dir / "overlay.png",
+                #     axis=0,
+                # )
 
                 metric_values = reg_results["iteration_metric_values"]
                 initial_metric = metric_values[0] if len(metric_values) > 0 else None
