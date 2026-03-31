@@ -70,13 +70,15 @@ def main() -> None:
         outdir / "metric_curve.png",
         title=f"{args.metric}, bins={args.bins}",
     )
-    save_overlay_figure(
-        fixed,
-        moving,
-        registered,
-        outdir / "overlay.png",
-        axis=0,
-    )
+    # Disabled due to mismatched dimensions and privacy constraints
+    # save_overlay_figure(...)
+    # save_overlay_figure(
+    #     fixed,
+    #     moving,
+    #     registered,
+    #     outdir / "overlay.png",
+    #     axis=0,
+    # )
 
     print("Registration complete.")
     print(summary)
