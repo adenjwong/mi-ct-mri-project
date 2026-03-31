@@ -100,6 +100,13 @@ def main() -> None:
                     axis=0,
                 )
 
+                metric_values = reg_results["iteration_metric_values"]
+                initial_metric = metric_values[0] if len(metric_values) > 0 else None
+                final_metric = metric_values[-1] if len(metric_values) > 0 else None
+                metric_improvement = None
+                if initial_metric is not None and final_metric is not None:
+                    metric_improvement = final_metric - initial_metric
+
                 row = {
                     "run_name": run_name,
                     "metric_name": metric_name,
@@ -108,11 +115,20 @@ def main() -> None:
                     "sampling_percentage": args.sampling_percentage,
                     "learning_rate": args.learning_rate,
                     "iterations_requested": args.iterations,
-                    "iterations_recorded": len(reg_results["iteration_metric_values"]),
+                    "iterations_recorded": len(metric_values),
+                    "initial_metric": initial_metric,
                     "optimizer_final_metric": reg_results["final_metric_value"],
+                    "final_metric_curve_value": final_metric,
+                    "metric_improvement": metric_improvement,
                     "posthoc_mi": summary["posthoc_mi"],
                     "posthoc_nmi": summary["posthoc_nmi"],
                     "stop_condition": reg_results["stop_condition"],
+                    "final_tx_p0": reg_results["final_parameters"][0] if len(reg_results["final_parameters"]) > 0 else None,
+                    "final_tx_p1": reg_results["final_parameters"][1] if len(reg_results["final_parameters"]) > 1 else None,
+                    "final_tx_p2": reg_results["final_parameters"][2] if len(reg_results["final_parameters"]) > 2 else None,
+                    "final_tx_p3": reg_results["final_parameters"][3] if len(reg_results["final_parameters"]) > 3 else None,
+                    "final_tx_p4": reg_results["final_parameters"][4] if len(reg_results["final_parameters"]) > 4 else None,
+                    "final_tx_p5": reg_results["final_parameters"][5] if len(reg_results["final_parameters"]) > 5 else None,
                 }
                 summary_rows.append(row)
 
