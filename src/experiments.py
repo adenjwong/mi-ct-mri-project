@@ -5,6 +5,7 @@ import csv
 import json
 from pathlib import Path
 from typing import Any, Dict, List
+import pandas as pd
 
 import SimpleITK as sitk
 
@@ -79,6 +80,12 @@ def main() -> None:
                     perturb_init=args.perturb_init,
                     seed=seed,
                 )
+                
+                curve_df = pd.DataFrame({
+                    "iteration": list(range(len(reg_results["iteration_metric_values"]))),
+                    "metric_value": reg_results["iteration_metric_values"],
+                })
+                curve_df.to_csv(run_dir / "metric_curve.csv", index=False)
 
                 registered = resample_registered_image(fixed, moving, transform)
                 sitk.WriteImage(registered, str(run_dir / "registered_mri.nii.gz"))
