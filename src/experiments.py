@@ -84,6 +84,9 @@ def main() -> None:
                 curve_df = pd.DataFrame({
                     "iteration": list(range(len(reg_results["iteration_metric_values"]))),
                     "metric_value": reg_results["iteration_metric_values"],
+                    "metric_name": metric_name,
+                    "bins": bins,
+                    "seed": seed,
                 })
                 curve_df.to_csv(run_dir / "metric_curve.csv", index=False)
 
