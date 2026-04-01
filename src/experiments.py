@@ -47,6 +47,10 @@ def main() -> None:
     parser.add_argument("--normalization", type=str, default="0_1", choices=["0_1", "zscore", "none"])
     parser.add_argument("--match_grid", action="store_true")
     parser.add_argument("--perturb_init", action="store_true")
+    parser.add_argument("--use_roi", action="store_true")
+    parser.add_argument("--roi_frac_x", type=float, default=0.5)
+    parser.add_argument("--roi_frac_y", type=float, default=0.5)
+    parser.add_argument("--roi_frac_z", type=float, default=0.5)
     args = parser.parse_args()
 
     outdir = Path(args.outdir)
