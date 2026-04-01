@@ -19,6 +19,7 @@ from register_rigid import (
 )
 from evaluate import summarize_registration
 from visualize import save_metric_curve, save_overlay_figure
+from roi_utils import crop_center_fraction
 
 
 def _write_summary_csv(rows: List[Dict[str, Any]], out_csv: Path) -> None:
@@ -63,6 +64,30 @@ def main() -> None:
         normalization=args.normalization,
         match_grid=args.match_grid,
     )
+    
+    if args.use_roi:
+        # first resample moving image to fixed grid so the same crop index makes sense
+        moving = sitk.Resample(
+            moving,
+            fixed,
+            sitk.Transform(fixed.GetDimension(), sitk.sitkIdentity),
+            sitk.sitkLinear,
+            0.0,
+            moving.GetPixelID(),
+        )
+
+        fixed = crop_center_fraction(
+            fixed,
+            frac_x=args.roi_frac_x,
+            frac_y=args.roi_frac_y,
+            frac_z=args.roi_frac_z,
+        )
+        moving = crop_center_fraction(
+            moving,
+            frac_x=args.roi_frac_x,
+            frac_y=args.roi_frac_y,
+            frac_z=args.roi_frac_z,
+        )
 
     summary_rows: List[Dict[str, Any]] = []
 
@@ -143,6 +168,10 @@ def main() -> None:
                     "final_tx_p3": reg_results["final_parameters"][3] if len(reg_results["final_parameters"]) > 3 else None,
                     "final_tx_p4": reg_results["final_parameters"][4] if len(reg_results["final_parameters"]) > 4 else None,
                     "final_tx_p5": reg_results["final_parameters"][5] if len(reg_results["final_parameters"]) > 5 else None,
+                    "use_roi": args.use_roi,
+                    "roi_frac_x": args.roi_frac_x if args.use_roi else None,
+                    "roi_frac_y": args.roi_frac_y if args.use_roi else None,
+                    "roi_frac_z": args.roi_frac_z if args.use_roi else None,
                 }
                 summary_rows.append(row)
 
