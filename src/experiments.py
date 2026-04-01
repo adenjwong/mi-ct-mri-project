@@ -66,28 +66,41 @@ def main() -> None:
     )
     
     if args.use_roi:
-        # first resample moving image to fixed grid so the same crop index makes sense
-        moving = sitk.Resample(
+        identity = sitk.Transform(fixed.GetDimension(), sitk.sitkIdentity)
+
+        # First put moving onto the fixed image grid
+        moving_resampled = sitk.Resample(
             moving,
             fixed,
-            sitk.Transform(fixed.GetDimension(), sitk.sitkIdentity),
+            identity,
             sitk.sitkLinear,
             0.0,
             moving.GetPixelID(),
         )
 
+        # Crop only the fixed image
         fixed = crop_center_fraction(
             fixed,
             frac_x=args.roi_frac_x,
             frac_y=args.roi_frac_y,
             frac_z=args.roi_frac_z,
         )
-        moving = crop_center_fraction(
-            moving,
-            frac_x=args.roi_frac_x,
-            frac_y=args.roi_frac_y,
-            frac_z=args.roi_frac_z,
+
+        # Now resample the moving image directly onto the cropped fixed ROI
+        moving = sitk.Resample(
+            moving_resampled,
+            fixed,
+            identity,
+            sitk.sitkLinear,
+            0.0,
+            moving.GetPixelID(),
         )
+
+        print("ROI mode enabled")
+        print("Fixed ROI size:", fixed.GetSize())
+        print("Fixed ROI spacing:", fixed.GetSpacing())
+        print("Moving ROI size:", moving.GetSize())
+        print("Moving ROI spacing:", moving.GetSpacing())
 
     summary_rows: List[Dict[str, Any]] = []
 
