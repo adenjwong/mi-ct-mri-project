@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 import pandas as pd
 
 import SimpleITK as sitk
+from tqdm import tqdm
 
 from load_data import load_fixed_moving
 from preprocess import preprocess_ct_mri
@@ -104,94 +105,99 @@ def main() -> None:
 
     summary_rows: List[Dict[str, Any]] = []
 
-    for metric_name in args.metrics:
-        for bins in args.bins:
-            for seed in args.seeds:
-                run_name = f"{metric_name}_bins{bins}_seed{seed}"
-                run_dir = outdir / run_name
-                run_dir.mkdir(parents=True, exist_ok=True)
+    run_configs = [
+        (metric_name, bins, seed)
+        for metric_name in args.metrics
+        for bins in args.bins
+        for seed in args.seeds
+    ]
 
-                transform, reg_results = run_rigid_registration(
-                    fixed=fixed,
-                    moving=moving,
-                    metric_name=metric_name,
-                    bins=bins,
-                    sampling_percentage=args.sampling_percentage,
-                    learning_rate=args.learning_rate,
-                    number_of_iterations=args.iterations,
-                    perturb_init=args.perturb_init,
-                    seed=seed,
-                )
-                
-                curve_df = pd.DataFrame({
-                    "iteration": list(range(len(reg_results["iteration_metric_values"]))),
-                    "metric_value": reg_results["iteration_metric_values"],
-                    "metric_name": metric_name,
-                    "bins": bins,
-                    "seed": seed,
-                })
-                curve_df.to_csv(run_dir / "metric_curve.csv", index=False)
+    for metric_name, bins, seed in tqdm(run_configs, desc="Experiment runs"):
+        run_name = f"{metric_name}_bins{bins}_seed{seed}"
+        run_dir = outdir / run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
 
-                registered = resample_registered_image(fixed, moving, transform)
-                sitk.WriteImage(registered, str(run_dir / "registered_mri.nii.gz"))
-                save_transform(transform, run_dir / "final_transform.tfm")
-                save_results_json(reg_results, run_dir / "registration_results.json")
+        transform, reg_results = run_rigid_registration(
+            fixed=fixed,
+            moving=moving,
+            metric_name=metric_name,
+            bins=bins,
+            sampling_percentage=args.sampling_percentage,
+            learning_rate=args.learning_rate,
+            number_of_iterations=args.iterations,
+            perturb_init=args.perturb_init,
+            seed=seed,
+        )
+        
+        curve_df = pd.DataFrame({
+            "iteration": list(range(len(reg_results["iteration_metric_values"]))),
+            "metric_value": reg_results["iteration_metric_values"],
+            "metric_name": metric_name,
+            "bins": bins,
+            "seed": seed,
+        })
+        curve_df.to_csv(run_dir / "metric_curve.csv", index=False)
 
-                summary = summarize_registration(fixed, registered, bins=bins)
+        registered = resample_registered_image(fixed, moving, transform)
+        sitk.WriteImage(registered, str(run_dir / "registered_mri.nii.gz"))
+        save_transform(transform, run_dir / "final_transform.tfm")
+        save_results_json(reg_results, run_dir / "registration_results.json")
 
-                save_metric_curve(
-                    reg_results["iteration_metric_values"],
-                    run_dir / "metric_curve.png",
-                    title=f"{metric_name}, bins={bins}, seed={seed}",
-                )
-                # save_overlay_figure(
-                #     fixed,
-                #     moving,
-                #     registered,
-                #     run_dir / "overlay.png",
-                #     axis=0,
-                # )
+        summary = summarize_registration(fixed, registered, bins=bins)
 
-                metric_values = reg_results["iteration_metric_values"]
-                initial_metric = metric_values[0] if len(metric_values) > 0 else None
-                final_metric = metric_values[-1] if len(metric_values) > 0 else None
-                metric_improvement = None
-                if initial_metric is not None and final_metric is not None:
-                    metric_improvement = final_metric - initial_metric
+        save_metric_curve(
+            reg_results["iteration_metric_values"],
+            run_dir / "metric_curve.png",
+            title=f"{metric_name}, bins={bins}, seed={seed}",
+        )
+        # save_overlay_figure(
+        #     fixed,
+        #     moving,
+        #     registered,
+        #     run_dir / "overlay.png",
+        #     axis=0,
+        # )
 
-                row = {
-                    "run_name": run_name,
-                    "metric_name": metric_name,
-                    "bins": bins,
-                    "seed": seed,
-                    "sampling_percentage": args.sampling_percentage,
-                    "learning_rate": args.learning_rate,
-                    "iterations_requested": args.iterations,
-                    "iterations_recorded": len(metric_values),
-                    "initial_metric": initial_metric,
-                    "optimizer_final_metric": reg_results["final_metric_value"],
-                    "final_metric_curve_value": final_metric,
-                    "metric_improvement": metric_improvement,
-                    "posthoc_mi": summary["posthoc_mi"],
-                    "posthoc_nmi": summary["posthoc_nmi"],
-                    "stop_condition": reg_results["stop_condition"],
-                    "final_tx_p0": reg_results["final_parameters"][0] if len(reg_results["final_parameters"]) > 0 else None,
-                    "final_tx_p1": reg_results["final_parameters"][1] if len(reg_results["final_parameters"]) > 1 else None,
-                    "final_tx_p2": reg_results["final_parameters"][2] if len(reg_results["final_parameters"]) > 2 else None,
-                    "final_tx_p3": reg_results["final_parameters"][3] if len(reg_results["final_parameters"]) > 3 else None,
-                    "final_tx_p4": reg_results["final_parameters"][4] if len(reg_results["final_parameters"]) > 4 else None,
-                    "final_tx_p5": reg_results["final_parameters"][5] if len(reg_results["final_parameters"]) > 5 else None,
-                    "use_roi": args.use_roi,
-                    "roi_frac_x": args.roi_frac_x if args.use_roi else None,
-                    "roi_frac_y": args.roi_frac_y if args.use_roi else None,
-                    "roi_frac_z": args.roi_frac_z if args.use_roi else None,
-                }
-                summary_rows.append(row)
+        metric_values = reg_results["iteration_metric_values"]
+        initial_metric = metric_values[0] if len(metric_values) > 0 else None
+        final_metric = metric_values[-1] if len(metric_values) > 0 else None
+        metric_improvement = None
+        if initial_metric is not None and final_metric is not None:
+            metric_improvement = final_metric - initial_metric
 
-                with open(run_dir / "summary.json", "w", encoding="utf-8") as f:
-                    json.dump(row, f, indent=2)
+        row = {
+            "run_name": run_name,
+            "metric_name": metric_name,
+            "bins": bins,
+            "seed": seed,
+            "sampling_percentage": args.sampling_percentage,
+            "learning_rate": args.learning_rate,
+            "iterations_requested": args.iterations,
+            "iterations_recorded": len(metric_values),
+            "initial_metric": initial_metric,
+            "optimizer_final_metric": reg_results["final_metric_value"],
+            "final_metric_curve_value": final_metric,
+            "metric_improvement": metric_improvement,
+            "posthoc_mi": summary["posthoc_mi"],
+            "posthoc_nmi": summary["posthoc_nmi"],
+            "stop_condition": reg_results["stop_condition"],
+            "final_tx_p0": reg_results["final_parameters"][0] if len(reg_results["final_parameters"]) > 0 else None,
+            "final_tx_p1": reg_results["final_parameters"][1] if len(reg_results["final_parameters"]) > 1 else None,
+            "final_tx_p2": reg_results["final_parameters"][2] if len(reg_results["final_parameters"]) > 2 else None,
+            "final_tx_p3": reg_results["final_parameters"][3] if len(reg_results["final_parameters"]) > 3 else None,
+            "final_tx_p4": reg_results["final_parameters"][4] if len(reg_results["final_parameters"]) > 4 else None,
+            "final_tx_p5": reg_results["final_parameters"][5] if len(reg_results["final_parameters"]) > 5 else None,
+            "use_roi": args.use_roi,
+            "roi_frac_x": args.roi_frac_x if args.use_roi else None,
+            "roi_frac_y": args.roi_frac_y if args.use_roi else None,
+            "roi_frac_z": args.roi_frac_z if args.use_roi else None,
+        }
+        summary_rows.append(row)
 
-                print(f"Finished {run_name}")
+        with open(run_dir / "summary.json", "w", encoding="utf-8") as f:
+            json.dump(row, f, indent=2)
+
+        print(f"Finished {run_name}")
 
     _write_summary_csv(summary_rows, outdir / "summary.csv")
     print(f"Saved summary to: {outdir / 'summary.csv'}")
