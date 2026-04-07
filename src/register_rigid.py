@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import SimpleITK as sitk
+from tqdm import tqdm
 
 
 def _make_initial_transform(
@@ -152,15 +153,23 @@ def run_rigid_registration(
     metric_values: List[float] = []
     optimizer_positions: List[List[float]] = []
 
+    pbar = tqdm(total=number_of_iterations, desc=f"Rigid {metric_name}, bins={bins}", leave=False)
+
     def _iteration_callback() -> None:
         metric_values.append(float(registration_method.GetMetricValue()))
         optimizer_positions.append(
             [float(x) for x in registration_method.GetOptimizerPosition()]
         )
+        pbar.update(1)
+        if len(metric_values) > 0:
+            pbar.set_postfix(metric=f"{metric_values[-1]:.5f}")
 
     registration_method.AddCommand(sitk.sitkIterationEvent, _iteration_callback)
 
-    final_transform = registration_method.Execute(fixed, moving)
+    try:
+        final_transform = registration_method.Execute(fixed, moving)
+    finally:
+        pbar.close()
 
     results: Dict[str, Any] = {
         "metric_name": metric_name,
