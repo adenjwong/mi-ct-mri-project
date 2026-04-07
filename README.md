@@ -17,6 +17,8 @@ The project is motivated by the classical paper:
 
 > W. M. Wells III, P. Viola, H. Atsumi, S. Nakajima, and R. Kikinis, “Multi-modal volume registration by maximization of mutual information,” *IEEE Transactions on Medical Imaging*, vol. 15, no. 1, pp. 35–45, 1996.
 
+In addition to rigid registration, this project now includes an optional **deformable (non-rigid) registration extension using B-spline free-form deformation (FFD)**. This extension is designed as a secondary experimental component to investigate how increasing transformation flexibility affects Mutual Information-based optimization and alignment quality.
+
 This repository is designed as a **small, mathematically focused experimental framework** suitable for a course project, mini paper, or technical presentation.
 
 ---
@@ -114,6 +116,22 @@ This project is designed to support:
 
 A future extension of this project is **non-rigid registration using B-spline free-form deformation**, with MI or NMI-style objectives plus regularization. That extension is not the main implementation target of this repository, but the current code structure is organized so that it can be added later.
 
+### Deformable registration (extension)
+
+This repository also includes an optional **deformable registration stage** implemented using B-spline transforms in SimpleITK.
+
+This extension:
+
+- runs after rigid registration as a refinement step
+- is initialized using the rigid transform
+- allows investigation of local anatomical alignment
+- is intended for controlled experiments, not production use
+
+This enables comparison between:
+
+- rigid-only registration
+- rigid + deformable registration
+
 ---
 
 ## Project Goals
@@ -157,6 +175,8 @@ mi_ct_mri_project/
 │   ├── visualize.py
 │   ├── experiments.py
 │   └── run_one_case.py
+│   ├── register_deformable_bspline.py
+│   ├── run_deformable_case.py
 │
 ├── results/
 │   ├── transforms/
@@ -376,6 +396,76 @@ Responsible for reading image data and printing basic metadata.
 
 #### Why it matters
 Registration is performed in physical space, so invalid metadata can cause strange behavior. This file makes it easy to inspect inputs early.
+
+## Deformable Registration Extension
+
+### Motivation
+
+Rigid registration captures global alignment but cannot model:
+
+- local anatomical variation
+- curvature differences
+- soft tissue deformation
+
+To explore whether local flexibility improves multimodal registration, this project includes a **deformable refinement stage** using B-spline free-form deformation.
+
+---
+
+### Pipeline Structure
+
+The full pipeline becomes:
+
+CT (fixed) + MRI (moving)  
+↓  
+Rigid registration  
+↓  
+Deformable refinement (B-spline)
+
+---
+
+### Key Design Principle
+
+Deformable registration is always initialized from the rigid result.
+
+This is critical because:
+
+- it improves convergence stability
+- it prevents unrealistic warping
+- it preserves meaningful global alignment
+
+---
+
+### Typical Parameters
+
+Example deformable settings:
+
+- mesh size: (4, 4, 3)
+- iterations: 50–100
+- metric: Mattes Mutual Information
+
+---
+
+### Experimental Questions
+
+This extension enables investigation of:
+
+- whether deformable registration improves MI/NMI
+- whether rigid alignment is already sufficient
+- when deformable registration overfits
+- how increased flexibility affects optimization stability
+
+---
+
+### Important Note
+
+Deformable registration introduces many more degrees of freedom.
+
+This can:
+
+- improve alignment in some cases
+- degrade results in others
+
+It is therefore treated as an **experimental extension**, not a guaranteed improvement.
 
 ---
 
@@ -710,6 +800,24 @@ python src/experiments.py \
   --perturb_init
 ```
 
+### Step 7: Deformable registration (optional)
+
+After confirming rigid registration works, you can run deformable refinement:
+
+```bash
+python src/run_deformable_case.py \
+  --ct data/ct/sample_ct.nii.gz \
+  --mri data/mri/sample_mri.nii.gz \
+  --outdir results/deformable_test \
+  --metric mattes_mi \
+  --bins 32 \
+  --rigid_iterations 200 \
+  --deformable_iterations 75 \
+  --mesh_x 4 --mesh_y 4 --mesh_z 3 \
+  --perturb_init \
+  --seed 0
+```
+
 ---
 
 ## Output Files and Their Meaning
@@ -747,6 +855,15 @@ A compact summary of the run.
 
 ### `summary.csv`
 Created only by the experiment runner. This is the aggregate table across all configurations.
+
+### Additional outputs (deformable extension)
+
+When deformable registration is used, additional outputs may include:
+
+- deformably registered MRI volume
+- deformable transform file
+- deformable metric curve
+- comparison summaries between rigid and deformable stages
 
 ---
 
@@ -819,6 +936,20 @@ Registration is a non-convex optimization problem. Different initial transforms 
 - sensitivity to surface roughness.
 
 This is a direct way to test robustness.
+
+### Deformable registration interpretation
+
+Deformable registration should not be assumed to always improve results.
+
+Possible outcomes include:
+
+- improvement in MI/NMI and alignment
+- minimal change if rigid alignment is sufficient
+- degradation due to overfitting or instability
+
+This reflects a fundamental trade-off:
+
+- increased flexibility vs decreased stability
 
 ---
 
