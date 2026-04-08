@@ -177,6 +177,7 @@ mi_ct_mri_project/
 │   └── run_one_case.py
 │   ├── register_deformable_bspline.py
 │   ├── run_deformable_case.py
+│   ├── inspect_images.py
 │
 ├── results/
 │   ├── transforms/
