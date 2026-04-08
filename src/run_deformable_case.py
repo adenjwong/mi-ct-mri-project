@@ -20,7 +20,7 @@ from register_deformable import (
     compose_transforms,
 )
 from evaluate import summarize_registration
-from visualize import save_metric_curve
+from visualize import save_metric_curve, save_overlay_figure, can_generate_overlay
 
 
 def main() -> None:
@@ -87,6 +87,16 @@ def main() -> None:
         outdir / "rigid_metric_curve.png",
         title=f"Rigid: {args.metric}, bins={args.bins}",
     )
+    if can_generate_overlay(fixed, moving) and can_generate_overlay(fixed, rigid_registered):
+        save_overlay_figure(
+            fixed,
+            moving,
+            rigid_registered,
+            outdir / "rigid_overlay.png",
+            axis=0,
+        )
+    else:
+        print("Skipping rigid overlay (shape mismatch or incompatible dims)")
 
     # Stage 2: deformable refinement
     if fixed.GetDimension() == 2:
@@ -125,6 +135,16 @@ def main() -> None:
         outdir / "deformable_metric_curve.png",
         title=f"Deformable: {args.metric}, bins={args.bins}",
     )
+    if can_generate_overlay(fixed, moving) and can_generate_overlay(fixed, deformable_registered):
+        save_overlay_figure(
+            fixed,
+            moving,
+            deformable_registered,
+            outdir / "deformable_overlay.png",
+            axis=0,
+        )
+    else:
+        print("Skipping deformable overlay (shape mismatch or incompatible dims)")
 
     summary = {
         "metric_name": args.metric,
