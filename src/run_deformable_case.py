@@ -89,6 +89,11 @@ def main() -> None:
     )
 
     # Stage 2: deformable refinement
+    if fixed.GetDimension() == 2:
+        mesh_size = (args.mesh_x, args.mesh_y)
+    else:
+        mesh_size = (args.mesh_x, args.mesh_y, args.mesh_z)
+
     deformable_transform, deformable_results = run_bspline_registration(
         fixed=fixed,
         moving=moving,
@@ -97,7 +102,7 @@ def main() -> None:
         bins=args.bins,
         sampling_percentage=args.sampling_percentage,
         number_of_iterations=args.deformable_iterations,
-        mesh_size=(args.mesh_x, args.mesh_y, args.mesh_z),
+        mesh_size=mesh_size,
     )
 
     composite_transform = compose_transforms(rigid_transform, deformable_transform)
@@ -125,7 +130,7 @@ def main() -> None:
         "metric_name": args.metric,
         "bins": args.bins,
         "seed": args.seed,
-        "mesh_size": [args.mesh_x, args.mesh_y, args.mesh_z],
+        "mesh_size": list(mesh_size),
         "rigid_posthoc_mi": rigid_summary["posthoc_mi"],
         "rigid_posthoc_nmi": rigid_summary["posthoc_nmi"],
         "deformable_posthoc_mi": deformable_summary["posthoc_mi"],
