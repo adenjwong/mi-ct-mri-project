@@ -23,14 +23,13 @@ def save_metric_curve(metric_values: Sequence[float], out_path: str | Path, titl
 
 
 def _extract_middle_slice(image: sitk.Image, axis: int = 0) -> np.ndarray:
-    """
-    Returns a middle slice from a 3D image as a 2D numpy array.
-    axis=0 means sagittal in array order [z, y, x] after GetArrayFromImage.
-    """
     arr = sitk.GetArrayFromImage(image)
 
+    if arr.ndim == 2:
+        return arr
+
     if arr.ndim != 3:
-        raise ValueError("Expected a 3D image.")
+        raise ValueError("Expected a 2D or 3D image.")
 
     if axis == 0:
         idx = arr.shape[2] // 2
