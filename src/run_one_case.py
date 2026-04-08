@@ -75,14 +75,14 @@ def main() -> None:
             fixed,
             moving,
             registered,
-            run_dir / "overlay.png",
+            outdir / "overlay.png",
             axis=0,
         )
     else:
-        print(f"Skipping overlay for {run_name} (shape mismatch or incompatible dims)")
+        print("Skipping overlay (shape mismatch or incompatible dims)")
 
-        print("Registration complete.")
-        print(summary)
+    print("Registration complete.")
+    print(summary)
 
 
 if __name__ == "__main__":
