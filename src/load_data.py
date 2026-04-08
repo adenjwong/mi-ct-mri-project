@@ -6,15 +6,29 @@ from typing import Tuple
 import SimpleITK as sitk
 
 
+from pathlib import Path
+import SimpleITK as sitk
+
+
+def rgb_to_grayscale(img: sitk.Image) -> sitk.Image:
+    c0 = sitk.VectorIndexSelectionCast(img, 0, sitk.sitkFloat32)
+    c1 = sitk.VectorIndexSelectionCast(img, 1, sitk.sitkFloat32)
+    c2 = sitk.VectorIndexSelectionCast(img, 2, sitk.sitkFloat32)
+    return sitk.Cast((c0 + c1 + c2) / 3.0, sitk.sitkFloat32)
+
+
 def load_image(path: str | Path, pixel_type: int = sitk.sitkFloat32) -> sitk.Image:
-    """
-    Load a medical image and cast to a desired pixel type.
-    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Image not found: {path}")
+
     image = sitk.ReadImage(str(path))
-    image = sitk.Cast(image, pixel_type)
+
+    if image.GetNumberOfComponentsPerPixel() > 1:
+        image = rgb_to_grayscale(image)
+    else:
+        image = sitk.Cast(image, pixel_type)
+
     return image
 
 
