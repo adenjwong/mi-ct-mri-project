@@ -45,6 +45,26 @@ def _extract_middle_slice(image: sitk.Image, axis: int = 0) -> np.ndarray:
 
     return slice_2d
 
+def can_generate_overlay(fixed: sitk.Image, moving: sitk.Image) -> bool:
+    fixed_arr = sitk.GetArrayFromImage(fixed)
+    moving_arr = sitk.GetArrayFromImage(moving)
+
+    # Allow both 2D or both 3D
+    if fixed_arr.ndim not in [2, 3] or moving_arr.ndim not in [2, 3]:
+        return False
+
+    # Extract slices safely
+    if fixed_arr.ndim == 3:
+        fixed_slice = fixed_arr[fixed_arr.shape[0] // 2]
+    else:
+        fixed_slice = fixed_arr
+
+    if moving_arr.ndim == 3:
+        moving_slice = moving_arr[moving_arr.shape[0] // 2]
+    else:
+        moving_slice = moving_arr
+
+    return fixed_slice.shape == moving_slice.shape
 
 def save_overlay_figure(
     fixed: sitk.Image,
