@@ -12,17 +12,29 @@ from tqdm import tqdm
 def _make_initial_transform(
     fixed: sitk.Image,
     moving: sitk.Image,
-    transform_type: str = "euler3d",
+    transform_type: str = "euler",
 ) -> sitk.Transform:
     """
     Create an initial centered rigid transform.
+    Automatically chooses 2D or 3D based on image dimension.
     """
-    if transform_type.lower() == "euler3d":
-        tx = sitk.Euler3DTransform()
-    elif transform_type.lower() == "versor":
-        tx = sitk.VersorRigid3DTransform()
+    dim = fixed.GetDimension()
+
+    if moving.GetDimension() != dim:
+        raise ValueError(
+            f"Fixed and moving dimensions do not match: "
+            f"{dim} vs {moving.GetDimension()}"
+        )
+
+    if dim == 2:
+        tx = sitk.Euler2DTransform()
+    elif dim == 3:
+        if transform_type.lower() == "versor":
+            tx = sitk.VersorRigid3DTransform()
+        else:
+            tx = sitk.Euler3DTransform()
     else:
-        raise ValueError(f"Unsupported transform_type: {transform_type}")
+        raise ValueError(f"Unsupported image dimension: {dim}")
 
     initial_transform = sitk.CenteredTransformInitializer(
         fixed,
@@ -41,24 +53,35 @@ def _perturb_transform(
 ) -> sitk.Transform:
     """
     Add random perturbations to a rigid transform.
-    Assumes Euler3DTransform-like parameterization:
-    (rx, ry, rz, tx, ty, tz), with rotations in radians.
+    Handles both Euler2D and Euler3D-style transforms.
     """
     rng = np.random.default_rng(seed)
-
-    tx = sitk.Euler3DTransform(transform)
-    params = list(tx.GetParameters())
-
     rotation_std_rad = np.deg2rad(rotation_std_deg)
-    params[0] += float(rng.normal(0.0, rotation_std_rad))
-    params[1] += float(rng.normal(0.0, rotation_std_rad))
-    params[2] += float(rng.normal(0.0, rotation_std_rad))
-    params[3] += float(rng.normal(0.0, translation_std_mm))
-    params[4] += float(rng.normal(0.0, translation_std_mm))
-    params[5] += float(rng.normal(0.0, translation_std_mm))
 
-    tx.SetParameters(tuple(params))
-    return tx
+    if isinstance(transform, sitk.Euler2DTransform):
+        tx = sitk.Euler2DTransform(transform)
+        angle, tx_mm, ty_mm = tx.GetParameters()
+
+        angle += float(rng.normal(0.0, rotation_std_rad))
+        tx_mm += float(rng.normal(0.0, translation_std_mm))
+        ty_mm += float(rng.normal(0.0, translation_std_mm))
+
+        tx.SetParameters((angle, tx_mm, ty_mm))
+        return tx
+
+    else:
+        tx = sitk.Euler3DTransform(transform)
+        params = list(tx.GetParameters())
+
+        params[0] += float(rng.normal(0.0, rotation_std_rad))
+        params[1] += float(rng.normal(0.0, rotation_std_rad))
+        params[2] += float(rng.normal(0.0, rotation_std_rad))
+        params[3] += float(rng.normal(0.0, translation_std_mm))
+        params[4] += float(rng.normal(0.0, translation_std_mm))
+        params[5] += float(rng.normal(0.0, translation_std_mm))
+
+        tx.SetParameters(tuple(params))
+        return tx
 
 
 def _configure_metric(
@@ -96,10 +119,8 @@ def _configure_optimizer(
     min_step: float = 1e-4,
     number_of_iterations: int = 200,
     relaxation_factor: float = 0.5,
+    dim: int = 3,
 ) -> None:
-    """
-    Configure a gradient-descent optimizer.
-    """
     registration_method.SetOptimizerAsRegularStepGradientDescent(
         learningRate=learning_rate,
         minStep=min_step,
@@ -107,7 +128,11 @@ def _configure_optimizer(
         relaxationFactor=relaxation_factor,
         gradientMagnitudeTolerance=1e-8,
     )
-    registration_method.SetOptimizerScalesFromPhysicalShift()
+
+    if dim == 2:
+        registration_method.SetOptimizerScales([1.0, 0.01, 0.01])
+    else:
+        registration_method.SetOptimizerScales([1.0, 1.0, 1.0, 0.01, 0.01, 0.01])
 
 
 def run_rigid_registration(
@@ -136,6 +161,7 @@ def run_rigid_registration(
         learning_rate=learning_rate,
         min_step=min_step,
         number_of_iterations=number_of_iterations,
+        dim=fixed.GetDimension(),
     )
 
     initial_transform = _make_initial_transform(fixed, moving, transform_type=transform_type)
