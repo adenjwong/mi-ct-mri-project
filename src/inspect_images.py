@@ -8,6 +8,7 @@ def print_image_info(name, img):
     print("  Origin:", img.GetOrigin())
     print("  Direction:", img.GetDirection())
     print("  PixelID:", img.GetPixelIDTypeAsString())
+    print("  Components:", img.GetNumberOfComponentsPerPixel())
     print()
 
 parser = argparse.ArgumentParser()
