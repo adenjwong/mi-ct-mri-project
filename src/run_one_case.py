@@ -14,7 +14,7 @@ from register_rigid import (
     save_transform,
 )
 from evaluate import summarize_registration
-from visualize import save_metric_curve, save_overlay_figure
+from visualize import save_metric_curve, save_overlay_figure, can_generate_overlay
 
 
 def main() -> None:
@@ -70,18 +70,19 @@ def main() -> None:
         outdir / "metric_curve.png",
         title=f"{args.metric}, bins={args.bins}",
     )
-    # Disabled due to mismatched dimensions and privacy constraints
-    # save_overlay_figure(...)
-    # save_overlay_figure(
-    #     fixed,
-    #     moving,
-    #     registered,
-    #     outdir / "overlay.png",
-    #     axis=0,
-    # )
+    if can_generate_overlay(fixed, moving) and can_generate_overlay(fixed, registered):
+        save_overlay_figure(
+            fixed,
+            moving,
+            registered,
+            run_dir / "overlay.png",
+            axis=0,
+        )
+    else:
+        print(f"Skipping overlay for {run_name} (shape mismatch or incompatible dims)")
 
-    print("Registration complete.")
-    print(summary)
+        print("Registration complete.")
+        print(summary)
 
 
 if __name__ == "__main__":

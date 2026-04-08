@@ -19,7 +19,7 @@ from register_rigid import (
     save_transform,
 )
 from evaluate import summarize_registration
-from visualize import save_metric_curve, save_overlay_figure
+from visualize import save_metric_curve, save_overlay_figure, can_generate_overlay
 from roi_utils import crop_center_fraction
 
 
@@ -150,13 +150,16 @@ def main() -> None:
             run_dir / "metric_curve.png",
             title=f"{metric_name}, bins={bins}, seed={seed}",
         )
-        # save_overlay_figure(
-        #     fixed,
-        #     moving,
-        #     registered,
-        #     run_dir / "overlay.png",
-        #     axis=0,
-        # )
+        if can_generate_overlay(fixed, moving) and can_generate_overlay(fixed, registered):
+            save_overlay_figure(
+                fixed,
+                moving,
+                registered,
+                run_dir / "overlay.png",
+                axis=0,
+            )
+        else:
+            print(f"Skipping overlay for {run_name} (shape mismatch or incompatible dims)")
 
         metric_values = reg_results["iteration_metric_values"]
         initial_metric = metric_values[0] if len(metric_values) > 0 else None
